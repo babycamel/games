@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pacific Tuna Purse Seiner Simulator</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    user-select: none;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: #061826;
+    color: #e6f4f1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #hud-top {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0a2538;
+    border-bottom: 2px solid #16425b;
+    padding: 10px 18px;
+    gap: 12px;
+    flex-wrap: wrap;
+    z-index: 10;
+  }
+  .stat-group {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .stat-box {
+    background: #061826;
+    border: 1px solid #1d4e6b;
+    border-radius: 6px;
+    padding: 5px 10px;
+    min-width: 115px;
+  }
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #81b2c9;
+    letter-spacing: 0.5px;
+  }
+  .stat-value {
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .positive { color: #38d9a9; }
+  .negative { color: #ff6b6b; }
+  .warning  { color: #ffd43b; }
+  .neutral  { color: #e6f4f1; }
+
+  #zone-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .zone-eez {
+    background: rgba(255, 107, 107, 0.2);
+    border: 1px solid #ff6b6b;
+    color: #ff8787;
+  }
+  .zone-highseas {
+    background: rgba(56, 217, 169, 0.2);
+    border: 1px solid #38d9a9;
+    color: #63e6be;
+  }
+  .zone-port {
+    background: rgba(77, 171, 247, 0.2);
+    border: 1px solid #4dabf7;
+    color: #74c0fc;
+  }
+
+  #canvas-container {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  #controls-bar {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    background: rgba(10, 37, 56, 0.92);
+    border: 1px solid #1d4e6b;
+    padding: 10px 16px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    z-index: 10;
+  }
+  button {
+    background: #1c7ed6;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button:hover:not(:disabled) {
+    background: #228be6;
+  }
+  button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  button:disabled {
+    background: #2b4454;
+    color: #6c8a9c;
+    cursor: not-allowed;
+  }
+  button.btn-net-active {
+    background: #f08c00;
+  }
+  button.btn-net-active:hover {
+    background: #f59f00;
+  }
+  button.btn-fad {
+    background: #0ca678;
+  }
+  button.btn-fad:hover:not(:disabled) {
+    background: #12b886;
+  }
+  button.btn-port {
+    background: #37b24d;
+  }
+  button.btn-port:hover:not(:disabled) {
+    background: #40c057;
+  }
+  button.btn-autopilot {
+    background: #4c6ef5;
+  }
+  button.btn-autopilot:hover:not(:disabled) {
+    background: #5c7cfa;
+  }
+  button.btn-restart {
+    background: #e03131;
+  }
+  button.btn-restart:hover:not(:disabled) {
+    background: #f03e3e;
+  }
+
+  #legend-box {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    background: rgba(10, 37, 56, 0.85);
+    border: 1px solid #1d4e6b;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  #toast {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(10, 37, 56, 0.95);
+    border-left: 4px solid #38d9a9;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    max-width: 320px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+    z-index: 15;
+  }
+
+  #error-banner {
+    display: none;
+    background: #c92a2a;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 50;
+  }
+
+  #modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 15, 24, 0.78);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+  }
+  #modal-card {
+    background: #0d2b40;
+    border: 2px solid #228be6;
+    border-radius: 12px;
+    padding: 22px 26px;
+    width: 90%;
+    max-width: 440px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+  }
+  #modal-card h2 {
+    margin-bottom: 12px;
+    color: #74c0fc;
+    font-size: 20px;
+  }
+  .receipt-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #194563;
+    font-size: 14px;
+  }
+  .receipt-row.total {
+    border-bottom: none;
+    border-top: 2px solid #2b6cb0;
+    margin-top: 8px;
+    padding-top: 10px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  #modal-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="error-banner"></div>
+
+<div id="hud-top">
+  <div class="stat-group">
+    <div class="stat-box">
+      <div class="stat-label">Bank Balance</div>
+      <div class="stat-value positive" id="hud-bank">$250,000</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Fish Hold (800t Max)</div>
+      <div class="stat-value neutral" id="hud-hold">0 t ($0)</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Trip VDS Days</div>
+      <div class="stat-value warning" id="hud-days">0.0 d ($0)</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Fuel & Ops (~$450/t)</div>
+      <div class="stat-value negative" id="hud-fuel">$0 (100% Fuel)</div>
+    </div>
+  </div>
+  <div id="zone-badge" class="zone-port">HOME PORT (DOCKED)</div>
+</div>
+
+<div id="canvas-container">
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="legend-box">
+    <div style="font-weight:700; margin-bottom:4px; color:#74c0fc;">WCPO Fishery Legend</div>
+    <div class="legend-item"><span class="dot" style="background:#ff6b6b;"></span> Dashed Ring: 200nm EEZ ($10,000/day VDS)</div>
+    <div class="legend-item"><span class="dot" style="background:#38d9a9;"></span> Open Water: High Seas Pocket ($0/day VDS)</div>
+    <div class="legend-item"><span class="dot" style="background:#ffd43b;"></span> Free School: Fast, Premium ($2,100-$3,150/t)</div>
+    <div class="legend-item"><span class="dot" style="background:#4dabf7;"></span> FAD Buoy: Dense, Steady (~$2,020/t)</div>
+    <div style="margin-top:6px; color:#9cc5db; font-size:11px;">
+      Steer: <b>WASD / Arrows</b> or <b>Click Ocean</b> | Net: <b>Space</b> | Home: <b>H</b>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="controls-bar">
+    <button id="btn-net" type="button">Deploy Purse Net [Space]</button>
+    <button id="btn-fad" class="btn-fad" type="button">Drop GPS FAD ($3,500) [F]</button>
+    <button id="btn-return" class="btn-autopilot" type="button">Return to Port [H]</button>
+    <button id="btn-port" class="btn-port" type="button">Offload & Refuel</button>
+    <button id="btn-restart" class="btn-restart" type="button">Restart [R]</button>
+  </div>
+
+  <div id="modal-overlay">
+    <div id="modal-card">
+      <h2>Port Offload & Trip Settlement</h2>
+      <div id="receipt-body"></div>
+      <div id="modal-actions">
+        <button id="btn-close-modal" type="button">Sail Out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.onerror = function(msg, url, line) {
+  const banner = document.getElementById('error-banner');
+  if (banner) {
+    banner.style.display = 'block';
+    banner.textContent = 'Simulation Error (Line ' + line + '): ' + msg;
+  }
+};
+
+(function() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // Economic & Fishery Constants
+  const MAX_HOLD = 800;
+  const VDS_DAILY_RATE = 10000;
+  const OP_COST_PER_NM = 68;
+  const SET_OP_COST = 4500;
+  const FAD_COST = 3500;
+  const SECONDS_PER_DAY = 18;
+
+  let width = 0;
+  let height = 0;
+
+  const state = {
+    bank: 250000,
+    holdTons: 0,
+    holdValue: 0,
+    tripDays: 0,
+    tripVdsCost: 0,
+    tripDistanceNm: 0,
+    tripFuelOpsCost: 0,
+    fuelPct: 100,
+    inPort: true,
+    inEEZ: false,
+    activeNation: '',
+    paused: false
+  };
+
+  const boat = {
+    x: 0,
+    y: 0,
+    angle: 0,
+    speed: 135,
+    targetX: null,
+    targetY: null,
+    returningHome: false,
+    netActive: false,
+    netPoints: [],
+    netMaxLength: 560,
+    netCurrentLength: 0
+  };
+
+  let islands = [];
+  let homePort = { x: 0, y: 0, radius: 44 };
+  let schools = [];
+  let fads = [];
+  const keys = {};
+
+  function updateLayoutPositions(resetBoat) {
+    homePort.x = width * 0.12;
+    homePort.y = height * 0.5;
+    homePort.radius = 44;
+
+    const minDim = Math.min(width, height);
+    islands = [
+      {
+        name: 'FSM EEZ',
+        x: width * 0.28,
+        y: height * 0.28,
+        islandRadius: 26,
+        eezRadius: minDim * 0.22
+      },
+      {
+        name: 'Kiribati EEZ',
+        x: width * 0.74,
+        y: height * 0.30,
+        islandRadius: 28,
+        eezRadius: minDim * 0.23
+      },
+      {
+        name: 'PNG / Solomons EEZ',
+        x: width * 0.48,
+        y: height * 0.76,
+        islandRadius: 32,
+        eezRadius: minDim * 0.22
+      }
+    ];
+
+    if (resetBoat) {
+      boat.x = homePort.x;
+      boat.y = homePort.y;
+      boat.angle = 0;
+      boat.targetX = null;
+      boat.targetY = null;
+      boat.returningHome = false;
+      boat.netActive = false;
+      boat.netPoints = [];
+      boat.netCurrentLength = 0;
+    } else {
+      boat.x = Math.max(20, Math.min(width - 20, boat.x));
+      boat.y = Math.max(20, Math.min(height - 20, boat.y));
+      if (boat.returningHome) {
+        boat.targetX = homePort.x;
+        boat.targetY = homePort.y;
+      }
+    }
+  }
+
+  function resize() {
+    const container = document.getElementById('canvas-container');
+    const rect = container.getBoundingClientRect();
+    width = canvas.width = Math.max(300, Math.floor(rect.width || window.innerWidth));
+    height = canvas.height = Math.max(300, Math.floor(rect.height || (window.innerHeight - 64)));
+    if (islands.length === 0) {
+      initWorld();
+    } else {
+      updateLayoutPositions(false);
+    }
+  }
+
+  function initWorld() {
+    updateLayoutPositions(true);
+
+    const btnNet = document.getElementById('btn-net');
+    btnNet.textContent = 'Deploy Purse Net [Space]';
+    btnNet.classList.remove('btn-net-active');
+
+    fads = [
+      createFAD(width * 0.35, height * 0.32),
+      createFAD(width * 0.52, height * 0.45),
+      createFAD(width * 0.70, height * 0.36),
+      createFAD(width * 0.50, height * 0.70)
+    ];
+
+    schools = [];
+    for (let i = 0; i < 9; i++) {
+      spawnFreeSchool();
+    }
+  }
+
+  function restartGame() {
+    state.bank = 250000;
+    state.holdTons = 0;
+    state.holdValue = 0;
+    state.tripDays = 0;
+    state.tripVdsCost = 0;
+    state.tripDistanceNm = 0;
+    state.tripFuelOpsCost = 0;
+    state.fuelPct = 100;
+    state.inPort = true;
+    state.inEEZ = false;
+    state.activeNation = '';
+    state.paused = false;
+
+    document.getElementById('modal-overlay').style.display = 'none';
+    initWorld();
+    updateHUD();
+    showToast('Simulation restarted. Docked at Home Port with $250,000.', '#74c0fc');
+  }
+
+  function returnToPort() {
+    if (state.paused) return;
+    if (state.inPort) {
+      if (state.holdTons > 0 || state.tripDays >= 0.1 || state.tripFuelOpsCost > 0) {
+        openPortModal();
+      } else {
+        showToast('Already docked at Home Port! Sail out first to fish.', '#74c0fc');
+      }
+      return;
+    }
+    if (boat.netActive) {
+      closeAndHaulNet();
+    }
+    boat.targetX = homePort.x;
+    boat.targetY = homePort.y;
+    boat.returningHome = true;
+    showToast('Autopilot engaged: Steaming back to Home Port...', '#74c0fc');
+  }
+
+  function handleOffloadClick() {
+    if (!state.inPort) {
+      showToast('You are at sea! Click "Return to Port [H]" or steer into Home Port first.', '#ffd43b');
+      return;
+    }
+    if (state.holdTons === 0 && state.tripDays < 0.1 && state.tripFuelOpsCost === 0) {
+      showToast('Hold is already empty and fuel is at 100%. Sail out to catch tuna!', '#74c0fc');
+      return;
+    }
+    openPortModal();
+  }
+
+  function createFAD(x, y) {
+    return {
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      tons: 55 + Math.floor(Math.random() * 45),
+      pricePerTon: 2020,
+      type: 'FAD'
+    };
+  }
+
+  function spawnFreeSchool() {
+    const isYellowfin = Math.random() < 0.45;
+    const margin = 80;
+    let x = margin + Math.random() * Math.max(100, width - margin * 2);
+    let y = margin + Math.random() * Math.max(100, height - margin * 2);
+
+    if (Math.hypot(x - homePort.x, y - homePort.y) < 100) {
+      x += 140;
+    }
+
+    const angle = Math.random() * Math.PI * 2;
+    const speed = isYellowfin ? 34 : 26;
+
+    schools.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      tons: isYellowfin ? (40 + Math.floor(Math.random() * 35)) : (50 + Math.floor(Math.random() * 45)),
+      pricePerTon: isYellowfin ? 3150 : 2100,
+      species: isYellowfin ? 'Free Yellowfin' : 'Free Skipjack',
+      type: 'FREE',
+      radius: 22
+    });
+  }
+
+  function showToast(msg, borderColor) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.borderLeftColor = borderColor || '#38d9a9';
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function() {
+      toast.style.opacity = '0';
+    }, 3400);
+  }
+
+  function deployFAD() {
+    if (state.inPort) {
+      showToast('Leave port first before deploying a drifting GPS FAD buoy.', '#ffd43b');
+      return;
+    }
+    if (state.bank < FAD_COST) {
+      showToast('Insufficient funds ($3,500 needed for GPS FAD).', '#ff6b6b');
+      return;
+    }
+    state.bank -= FAD_COST;
+    state.tripFuelOpsCost += FAD_COST;
+    const newFad = createFAD(boat.x, boat.y);
+    newFad.tons = 20;
+    fads.push(newFad);
+    showToast('Deployed GPS Echo-Sounder FAD ($3,500). Tuna will aggregate over time!', '#38d9a9');
+  }
+
+  function toggleNet() {
+    if (state.inPort) {
+      showToast('Cannot set purse net inside harbor! Steer out to open water.', '#ffd43b');
+      return;
+    }
+    if (!boat.netActive) {
+      if (state.holdTons >= MAX_HOLD) {
+        showToast('Fish hold is full (800t)! Return to port to offload.', '#ff6b6b');
+        return;
+      }
+      boat.returningHome = false;
+      boat.netActive = true;
+      boat.netPoints = [{ x: boat.x, y: boat.y }];
+      boat.netCurrentLength = 0;
+      state.tripFuelOpsCost += SET_OP_COST;
+      const btn = document.getElementById('btn-net');
+      btn.textContent = 'Purse & Haul Net [Space]';
+      btn.classList.add('btn-net-active');
+      showToast('Skiff dropped! Encircle a Free School or FAD and close the loop.', '#ffd43b');
+    } else {
+      closeAndHaulNet();
+    }
+  }
+
+  function closeAndHaulNet() {
+    boat.netActive = false;
+    const btn = document.getElementById('btn-net');
+    btn.textContent = 'Deploy Purse Net [Space]';
+    btn.classList.remove('btn-net-active');
+
+    if (boat.netPoints.length < 6) {
+      boat.netPoints = [];
+      showToast('Net retrieved empty (circle too small).', '#ff8787');
+      return;
+    }
+
+    const poly = boat.netPoints.concat([{ x: boat.x, y: boat.y }]);
+    let caughtTons = 0;
+    let caughtValue = 0;
+    const catchSummary = [];
+
+    for (let i = schools.length - 1; i >= 0; i--) {
+      const s = schools[i];
+      if (pointInPolygon(s.x, s.y, poly)) {
+        const spaceLeft = MAX_HOLD - (state.holdTons + caughtTons);
+        if (spaceLeft <= 0) break;
+        const landed = Math.min(s.tons, spaceLeft);
+        caughtTons += landed;
+        caughtValue += landed * s.pricePerTon;
+        catchSummary.push(landed + 't ' + s.species);
+        schools.splice(i, 1);
+        spawnFreeSchool();
+      }
+    }
+
+    for (let i = 0; i < fads.length; i++) {
+      const f = fads[i];
+      if (f.tons >= 15 && pointInPolygon(f.x, f.y, poly)) {
+        const spaceLeft = MAX_HOLD - (state.holdTons + caughtTons);
+        if (spaceLeft <= 0) break;
+        const landed = Math.min(Math.floor(f.tons), spaceLeft);
+        caughtTons += landed;
+        caughtValue += landed * f.pricePerTon;
+        catchSummary.push(landed + 't FAD Tuna');
+        f.tons = 5;
+      }
+    }
+
+    boat.netPoints = [];
+
+    if (caughtTons > 0) {
+      state.holdTons += caughtTons;
+      state.holdValue += caughtValue;
+      showToast('Successful set! Brailed ' + catchSummary.join(' + ') + ' (+$' + Math.round(caughtValue).toLocaleString() + ')', '#38d9a9');
+    } else {
+      showToast('Water haul! The tuna escaped before the purse line closed.', '#ff6b6b');
+    }
+  }
+
+  function pointInPolygon(x, y, vs) {
+    let inside = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      const xi = vs[i].x, yi = vs[i].y;
+      const xj = vs[j].x, yj = vs[j].y;
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / ((yj - yi) || 0.0001) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function update(dt) {
+    if (state.paused) return;
+
+    let dx = 0;
+    let dy = 0;
+    if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+    if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+    if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+    if (dx !== 0 || dy !== 0) {
+      boat.targetX = null;
+      boat.targetY = null;
+      boat.returningHome = false;
+      const len = Math.hypot(dx, dy);
+      dx /= len;
+      dy /= len;
+    } else if (boat.targetX !== null && boat.targetY !== null) {
+      const dist = Math.hypot(boat.targetX - boat.x, boat.targetY - boat.y);
+      if (dist > 6) {
+        dx = (boat.targetX - boat.x) / dist;
+        dy = (boat.targetY - boat.y) / dist;
+      } else {
+        boat.targetX = null;
+        boat.targetY = null;
+        boat.returningHome = false;
+      }
+    }
+
+    const currentSpeed = boat.netActive ? boat.speed * 0.85 : boat.speed;
+    if (dx !== 0 || dy !== 0) {
+      boat.angle = Math.atan2(dy, dx);
+      const moveX = dx * currentSpeed * dt;
+      const moveY = dy * currentSpeed * dt;
+
+      let nextX = Math.max(20, Math.min(width - 20, boat.x + moveX));
+      let nextY = Math.max(20, Math.min(height - 20, boat.y + moveY));
+
+      for (let i = 0; i < islands.length; i++) {
+        const isl = islands[i];
+        const minDist = isl.islandRadius + 12;
+        const distToCenter = Math.hypot(nextX - isl.x, nextY - isl.y);
+        if (distToCenter < minDist && distToCenter > 0.001) {
+          const pushAng = Math.atan2(nextY - isl.y, nextX - isl.x);
+          nextX = isl.x + Math.cos(pushAng) * minDist;
+          nextY = isl.y + Math.sin(pushAng) * minDist;
+        }
+      }
+
+      const distPixels = Math.hypot(nextX - boat.x, nextY - boat.y);
+      const distNm = distPixels * 0.45;
+      boat.x = nextX;
+      boat.y = nextY;
+
+      state.tripDistanceNm += distNm;
+      state.tripFuelOpsCost += distNm * OP_COST_PER_NM;
+      state.fuelPct = Math.max(0, 100 - (state.tripDistanceNm / 1200) * 100);
+
+      if (boat.netActive && boat.netPoints.length > 0) {
+        const lastPt = boat.netPoints[boat.netPoints.length - 1];
+        const segLen = Math.hypot(boat.x - lastPt.x, boat.y - lastPt.y);
+        if (segLen >= 12) {
+          boat.netPoints.push({ x: boat.x, y: boat.y });
+          boat.netCurrentLength += segLen;
+
+          const startPt = boat.netPoints[0];
+          if (boat.netPoints.length > 12 && Math.hypot(boat.x - startPt.x, boat.y - startPt.y) < 28) {
+            closeAndHaulNet();
+          } else if (boat.netCurrentLength >= boat.netMaxLength) {
+            closeAndHaulNet();
+          }
+        }
+      }
+    }
+
+    const wasInPort = state.inPort;
+    const distToPort = Math.hypot(boat.x - homePort.x, boat.y - homePort.y);
+    state.inPort = distToPort <= homePort.radius + 14;
+
+    if (state.inPort && !wasInPort) {
+      boat.targetX = null;
+      boat.targetY = null;
+      boat.returningHome = false;
+      showToast('Docked at Home Port! Click "Offload & Refuel" to settle your trip.', '#38d9a9');
+    }
+
+    state.inEEZ = false;
+    state.activeNation = '';
+    for (let i = 0; i < islands.length; i++) {
+      const isl = islands[i];
+      if (Math.hypot(boat.x - isl.x, boat.y - isl.y) <= isl.eezRadius) {
+        state.inEEZ = true;
+        state.activeNation = isl.name;
+        break;
+      }
+    }
+
+    if (!state.inPort) {
+      const deltaDays = dt / SECONDS_PER_DAY;
+      state.tripDays += deltaDays;
+      if (state.inEEZ) {
+        state.tripVdsCost += deltaDays * VDS_DAILY_RATE;
+      }
+    }
+
+    for (let i = 0; i < schools.length; i++) {
+      const s = schools[i];
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+
+      if (s.x < 40 || s.x > width - 40) s.vx *= -1;
+      if (s.y < 40 || s.y > height - 40) s.vy *= -1;
+      for (let j = 0; j < islands.length; j++) {
+        const isl = islands[j];
+        if (Math.hypot(s.x - isl.x, s.y - isl.y) < isl.islandRadius + 25) {
+          s.vx *= -1;
+          s.vy *= -1;
+        }
+      }
+    }
+
+    for (let i = 0; i < fads.length; i++) {
+      const f = fads[i];
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      if (f.x < 60 || f.x > width - 60) f.vx *= -1;
+      if (f.y < 60 || f.y > height - 60) f.vy *= -1;
+      if (f.tons < 110) {
+        f.tons += 1.4 * dt;
+      }
+    }
+
+    updateHUD();
+  }
+
+  function updateHUD() {
+    document.getElementById('hud-bank').textContent = '$' + Math.round(state.bank).toLocaleString();
+    document.getElementById('hud-hold').textContent = Math.round(state.holdTons) + ' t ($' + Math.round(state.holdValue).toLocaleString() + ')';
+    document.getElementById('hud-days').textContent = state.tripDays.toFixed(1) + ' d ($' + Math.round(state.tripVdsCost).toLocaleString() + ')';
+
+    const costPerTonStr = state.holdTons > 0 ? '$' + Math.round(state.tripFuelOpsCost / state.holdTons) + '/t' : '~$450/t target';
+    document.getElementById('hud-fuel').textContent = '$' + Math.round(state.tripFuelOpsCost).toLocaleString() + ' (' + costPerTonStr + ')';
+
+    const badge = document.getElementById('zone-badge');
+    if (state.inPort) {
+      badge.className = 'zone-port';
+      badge.textContent = 'HOME PORT (DOCKED - $0 VDS)';
+    } else if (state.inEEZ) {
+      badge.className = 'zone-eez';
+      badge.textContent = state.activeNation + ' ($10,000/DAY VDS)';
+    } else {
+      badge.className = 'zone-highseas';
+      badge.textContent = 'HIGH SEAS POCKET ($0/DAY VDS)';
+    }
+  }
+
+  function openPortModal() {
+    state.paused = true;
+    const gross = Math.round(state.holdValue);
+    const fuelOps = Math.round(state.tripFuelOpsCost);
+    const vds = Math.round(state.tripVdsCost);
+    const netProfit = gross - fuelOps - vds;
+    const costPerTon = state.holdTons > 0 ? Math.round((fuelOps + vds) / state.holdTons) : 0;
+
+    state.bank += netProfit;
+
+    const body = document.getElementById('receipt-body');
+    body.innerHTML =
+      '<div class="receipt-row"><span>Landed Catch (' + Math.round(state.holdTons) + ' metric tons)</span><span class="positive">+$' + gross.toLocaleString() + '</span></div>' +
+      '<div class="receipt-row"><span>Fuel & Vessel Ops (' + Math.round(state.tripDistanceNm) + ' nm steamed)</span><span class="negative">-$' + fuelOps.toLocaleString() + '</span></div>' +
+      '<div class="receipt-row"><span>VDS License Days (' + state.tripDays.toFixed(1) + ' days in EEZ)</span><span class="negative">-$' + vds.toLocaleString() + '</span></div>' +
+      '<div class="receipt-row"><span>All-In Catch Cost / Ton</span><span>$' + costPerTon.toLocaleString() + ' / t</span></div>' +
+      '<div class="receipt-row total"><span>Net Trip Profit</span><span class="' + (netProfit >= 0 ? 'positive' : 'negative') + '">' + (netProfit >= 0 ? '+' : '') + '$' + netProfit.toLocaleString() + '</span></div>';
+
+    state.holdTons = 0;
+    state.holdValue = 0;
+    state.tripDays = 0;
+    state.tripVdsCost = 0;
+    state.tripDistanceNm = 0;
+    state.tripFuelOpsCost = 0;
+    state.fuelPct = 100;
+    boat.netActive = false;
+    boat.netPoints = [];
+
+    document.getElementById('modal-overlay').style.display = 'flex';
+    updateHUD();
+  }
+
+  function closePortModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+    state.paused = false;
+  }
+
+  function draw() {
+    const grad = ctx.createRadialGradient(width * 0.5, height * 0.5, 60, width * 0.5, height * 0.5, Math.max(width, height) * 0.75);
+    grad.addColorStop(0, '#0b3954');
+    grad.addColorStop(1, '#061f30');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = 'rgba(116, 192, 252, 0.06)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 80) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 80) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+    }
+
+    for (let i = 0; i < islands.length; i++) {
+      const isl = islands[i];
+      ctx.beginPath();
+      ctx.arc(isl.x, isl.y, isl.eezRadius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 107, 107, 0.06)';
+      ctx.fill();
+
+      ctx.save();
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = 'rgba(255, 107, 107, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = 'rgba(255, 135, 135, 0.85)';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(isl.name + ' ($10k/d VDS)', isl.x, isl.y - isl.eezRadius + 18);
+
+      ctx.beginPath();
+      ctx.arc(isl.x, isl.y, isl.islandRadius + 9, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(56, 217, 169, 0.25)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(isl.x, isl.y, isl.islandRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#2b8a3e';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffd43b';
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(99, 230, 190, 0.55)';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('HIGH SEAS POCKET ($0 VDS)', width * 0.52, height * 0.36);
+
+    ctx.beginPath();
+    ctx.arc(homePort.x, homePort.y, homePort.radius, 0, Math.PI * 2);
+    ctx.fillStyle = state.inPort ? 'rgba(56, 217, 169, 0.28)' : 'rgba(77, 171, 247, 0.22)';
+    ctx.fill();
+    ctx.strokeStyle = state.inPort ? '#38d9a9' : '#4dabf7';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#a5d8ff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('HOME PORT', homePort.x, homePort.y - homePort.radius - 8);
+    ctx.fillText('(Offload / Refuel)', homePort.x, homePort.y + homePort.radius + 14);
+
+    if (boat.targetX !== null && boat.targetY !== null) {
+      ctx.save();
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(boat.x, boat.y);
+      ctx.lineTo(boat.targetX, boat.targetY);
+      ctx.strokeStyle = 'rgba(116, 192, 252, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (let i = 0; i < fads.length; i++) {
+      const f = fads[i];
+      const aggRadius = 10 + (f.tons / 110) * 18;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, aggRadius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(77, 171, 247, 0.28)';
+      ctx.fill();
+
+      ctx.fillStyle = '#ff922b';
+      ctx.fillRect(f.x - 5, f.y - 5, 10, 10);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(f.x - 5, f.y - 5, 10, 10);
+
+      ctx.fillStyle = '#d0ebff';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('FAD: ' + Math.floor(f.tons) + 't', f.x, f.y - aggRadius - 5);
+    }
+
+    for (let i = 0; i < schools.length; i++) {
+      const s = schools[i];
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+      ctx.fillStyle = s.species === 'Free Yellowfin'
+        ? 'rgba(255, 212, 59, 0.32)'
+        : 'rgba(56, 217, 169, 0.28)';
+      ctx.fill();
+
+      ctx.fillStyle = s.species === 'Free Yellowfin' ? '#ffd43b' : '#63e6be';
+      for (let k = 0; k < 5; k++) {
+        const ang = (performance.now() * 0.003) + k * 1.25;
+        const fx = s.x + Math.cos(ang) * 9;
+        const fy = s.y + Math.sin(ang) * 9;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = '#fff3bf';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(s.species + ' (' + s.tons + 't)', s.x, s.y - s.radius - 5);
+    }
+
+    if (boat.netActive && boat.netPoints.length > 0) {
+      const firstPt = boat.netPoints[0];
+      ctx.beginPath();
+      ctx.moveTo(firstPt.x, firstPt.y);
+      for (let i = 1; i < boat.netPoints.length; i++) {
+        ctx.lineTo(boat.netPoints[i].x, boat.netPoints[i].y);
+      }
+      ctx.lineTo(boat.x, boat.y);
+      ctx.strokeStyle = '#ff922b';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(firstPt.x, firstPt.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6b6b';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.translate(boat.x, boat.y);
+    ctx.rotate(boat.angle);
+
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(6, -7);
+    ctx.lineTo(-16, -7);
+    ctx.lineTo(-16, 7);
+    ctx.lineTo(6, 7);
+    ctx.closePath();
+    ctx.fillStyle = '#f8f9fa';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#1864ab';
+    ctx.stroke();
+
+    ctx.fillStyle = '#1c7ed6';
+    ctx.fillRect(-4, -5, 9, 10);
+
+    ctx.fillStyle = '#ffd43b';
+    ctx.beginPath();
+    ctx.arc(2, 0, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Event Bindings
+  document.getElementById('btn-net').addEventListener('click', toggleNet);
+  document.getElementById('btn-fad').addEventListener('click', deployFAD);
+  document.getElementById('btn-return').addEventListener('click', returnToPort);
+  document.getElementById('btn-port').addEventListener('click', handleOffloadClick);
+  document.getElementById('btn-restart').addEventListener('click', restartGame);
+  document.getElementById('btn-close-modal').addEventListener('click', closePortModal);
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('load', resize);
+  window.addEventListener('keydown', function(e) {
+    keys[e.code] = true;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (!state.paused) toggleNet();
+    }
+    if (e.code === 'KeyF') {
+      if (!state.paused) deployFAD();
+    }
+    if (e.code === 'KeyH') {
+      if (!state.paused) returnToPort();
+    }
+    if (e.code === 'KeyR') {
+      restartGame();
+    }
+  });
+  window.addEventListener('keyup', function(e) {
+    keys[e.code] = false;
+  });
+
+  canvas.addEventListener('mousedown', function(e) {
+    if (state.paused) return;
+    const rect = canvas.getBoundingClientRect();
+    boat.targetX = e.clientX - rect.left;
+    boat.targetY = e.clientY - rect.top;
+    boat.returningHome = false;
+  });
+
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
